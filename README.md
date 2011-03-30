@@ -13,7 +13,13 @@ Setup
      # check munin ###  module / warn / crit  
      define command {  
         command_name    check_munin  
-        command_line    $USER1$/check_munin_rrd.pl -H $HOSTNAME$ -M $ARG1$ -w $ARG2$ -c $ARG3$   
+	command_line	$USER1$/check_munin_rrd.pl -H $HOSTALIAS$ -d $HOSTALIAS$ -M $ARG1$ -w $ARG2$ -c $ARG3$
+     }
+
+     # check munin ###  submodule / warn / crit  
+     define command {  
+        command_name    check_munin_submodule
+	command_line	$USER1$/check_munin_rrd.pl -H $HOSTALIAS$ -d $HOSTALIAS$ -M $ARG1$ -S $ARG2$ -w $ARG3$ -c $ARG4$
      }
 
 1. Define services
