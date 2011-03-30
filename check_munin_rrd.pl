@@ -29,7 +29,7 @@ use RRDs;
 use Getopt::Long;
 use File::Find ();
 
-use vars qw($opt_V $opt_v $opt_h $opt_w $opt_c $opt_h $opt_M $opt_d $opt_H $opt_D $PROGNAME);
+use vars qw($opt_V $opt_v $opt_h $opt_w $opt_c $opt_h $opt_M $opt_S $opt_d $opt_H $opt_D $PROGNAME);
 
 use lib "/usr/lib64/nagios/plugins" ;
 use utils qw(%ERRORS &print_revision &support &usage);
@@ -45,6 +45,7 @@ my $REVISION    = "1.1";
 my $hostname    = undef;
 my $domain      = undef;
 my $module      = undef;
+my $submodule 	= undef;
 
 
 # nagios specific
@@ -66,11 +67,12 @@ GetOptions
        ("V"   => \$opt_V, "version"     => \$opt_V,
         "h"   => \$opt_h, "help"        => \$opt_h,
         "v"   => \$opt_v, "verbose"     => \$opt_v,
-        "w=i" => \$opt_w, "warning=i"   => \$opt_w,
-        "c=i" => \$opt_c, "critical=i"  => \$opt_c,
+        "w=f" => \$opt_w, "warning=f"   => \$opt_w,
+        "c=f" => \$opt_c, "critical=f"  => \$opt_c,
         "d=s" => \$opt_d, "domain=s"    => \$opt_d,
         "D=s" => \$opt_D, "datadir=s"   => \$opt_D,
         "M=s" => \$opt_M, "module=s"    => \$opt_M,
+        "S=s" => \$opt_S, "submodule=s" => \$opt_S,
         "H=s" => \$opt_H, "hostname=s"  => \$opt_H);
 
 
@@ -126,23 +128,40 @@ foreach (@rrd) {
             my $seconds_diff = $now_string - $mtime;
             if ($seconds_diff > 600) {
                 my $formated_mtime = strftime "%d-%b-%Y %H:%M:%S %Z", localtime($mtime);
-                print "Problem on $current_rrd : data are too old, $formated_mtime\n";
-                exit $ERRORS{"UNKNOWN"};
+                print "Problem on $current_rrd : data are too old, $formated_mtime\n" if $DEBUG;
+                exit $ERRORS{"UNKNOWN"} if $DEBUG;
             }
             print "Module_part : $component\n" if $DEBUG;
             my $value = get_last_rrd_data($current_rrd);
             print "$component : $value\n" if $DEBUG;
-            if (($value> $opt_w) && ($status ne 2)) {
-                $status = "1";
-                $problem_on_name = $component;
-                $problem_value = $value;
-            }
-            if ( $value > $opt_c){
-                $status = "2";
-                $problem_on_name = $component;
-                $problem_value = $value;
-            }
-            $response_text .= "$component: $value ";
+
+			if (!defined($submodule)) {
+				if (($value> $opt_w) && ($status ne 2))	{
+					 $status = "1";
+					 $problem_on_name = $component;
+					 $problem_value = $value;
+				}
+				if ( $value > $opt_c){
+					 $status = "2";
+					 $problem_on_name = $component;
+					 $problem_value = $value;
+				}
+				$response_text .= "$component: $value ";
+			} else {
+				if ($component =~ /$submodule/) {
+					$response_text .= "$component: $value ";
+					if (($value> $opt_w) && ($status ne 2))	{
+						 $status = "1";
+						 $problem_on_name = $component;
+						 $problem_value = $value;
+					}
+					if ( $value > $opt_c){
+						 $status = "2";
+						 $problem_on_name = $component;
+						 $problem_value = $value;
+					}
+				}
+			}
             print "Response text : $response_text\n" if $DEBUG;
         }    
         else {
@@ -153,15 +172,15 @@ foreach (@rrd) {
 
 
 if ($status eq 1) {
-       print "$problem_on_name value $problem_value, is above warning treshold $opt_w\n";
+       print "WARNING - $problem_on_name value $problem_value, is above warning treshold $opt_w\n";
        $status = $ERRORS{"WARNING"};
 
 } elsif ($status eq 2) {
-       print "$problem_on_name value $problem_value,  is above critical treshold $opt_c\n";
+       print "CRITICAL - $problem_on_name value $problem_value,  is above critical treshold $opt_c\n";
        $status = $ERRORS{"CRITICAL"};
 
 } else {
-       print "$response_text  \n";
+       print "OK - $response_text  \n";
        $status = $ERRORS{"OK"};
 }
 
@@ -269,6 +288,16 @@ sub check_parameters {
             print_usage();
             exit $ERRORS{"UNKNOWN"};
     }
+
+	if (defined($opt_S) and !defined($opt_M))	{
+			print "Which module do you want to check ?\n";
+			print "Can't have Submodule without Module.\n";
+		 	print_usage();
+		 	exit $ERRORS{"UNKNOWN"};
+	} elsif (defined($opt_S)) {
+			$submodule = $opt_S;
+			printf "SubModule : $submodule\n" if $DEBUG;
+	}
 
     if (defined($opt_d))    {
             $domain = $opt_d;
